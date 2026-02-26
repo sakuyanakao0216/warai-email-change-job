@@ -72,14 +72,18 @@ jobs:
           docker push ${{ env.IMAGE }}:latest
 
       - name: Deploy to Cloud Run Jobs
+        env:
+          FIREBASE_CREDENTIALS_B64: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
         run: |
+          # JSON は改行・特殊文字を含むため base64 エンコードして渡す
+          ENCODED=$(echo "$FIREBASE_CREDENTIALS_B64" | base64 -w 0)
           gcloud run jobs update email-change-job \
             --image ${{ env.IMAGE }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
-            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON }}" \
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${ENCODED}" \
             || gcloud run jobs create email-change-job \
             --image ${{ env.IMAGE }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
-            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON }}"
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${ENCODED}"

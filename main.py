@@ -9,6 +9,7 @@ CSV フォーマット（1 行目はヘッダー: old_email,new_email）:
 
 from __future__ import annotations
 
+import base64
 import csv
 import io
 import json
@@ -36,7 +37,17 @@ def get_env(key: str) -> str:
 
 
 def init_firebase(credentials_json: str) -> None:
-    """Firebase Admin SDK を初期化する。"""
+    """Firebase Admin SDK を初期化する。
+
+    credentials_json は JSON 文字列または base64 エンコードされた JSON 文字列を受け付ける。
+    """
+    # base64 エンコードされている場合はデコードする
+    try:
+        decoded = base64.b64decode(credentials_json).decode("utf-8")
+        json.loads(decoded)  # 有効な JSON か確認
+        credentials_json = decoded
+    except Exception:
+        pass  # base64 でなければそのまま使う
     cred_dict = json.loads(credentials_json)
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
