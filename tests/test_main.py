@@ -8,7 +8,6 @@ import pytest
 
 import main
 
-
 # ---------------------------------------------------------------------------
 # get_env
 # ---------------------------------------------------------------------------
@@ -68,7 +67,9 @@ def test_parse_csv_skips_empty_fields() -> None:
 
 def test_fetch_csv_from_gcs_returns_text() -> None:
     mock_blob = MagicMock()
-    mock_blob.download_as_text.return_value = "old_email,new_email\na@example.com,b@example.com\n"
+    mock_blob.download_as_text.return_value = (
+        "old_email,new_email\na@example.com,b@example.com\n"
+    )
     mock_bucket = MagicMock()
     mock_bucket.blob.return_value = mock_blob
     mock_client = MagicMock()
@@ -95,7 +96,9 @@ def test_update_email_success() -> None:
     mock_update_resp = MagicMock()
     mock_update_resp.raise_for_status = MagicMock()
 
-    with patch("main.requests.post", side_effect=[mock_lookup_resp, mock_update_resp]) as mock_post:
+    with patch(
+        "main.requests.post", side_effect=[mock_lookup_resp, mock_update_resp]
+    ) as mock_post:
         main.update_email("api-key-123", "old@example.com", "new@example.com")
 
     assert mock_post.call_count == 2

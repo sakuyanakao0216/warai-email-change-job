@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 _IDENTITY_TOOLKIT_URL = (
     "https://identitytoolkit.googleapis.com/v1/accounts:update?key={api_key}"
 )
-_LOOKUP_URL = (
-    "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}"
-)
+_LOOKUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}"
 
 
 def get_env(key: str) -> str:
