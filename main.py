@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import logging
 import os
 import sys
 
-import requests
+import firebase_admin
+from firebase_admin import auth, credentials
 from google.cloud import storage
 
 logging.basicConfig(
@@ -24,11 +26,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_IDENTITY_TOOLKIT_URL = (
-    "https://identitytoolkit.googleapis.com/v1/accounts:update?key={api_key}"
-)
-_LOOKUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}"
-
 
 def get_env(key: str) -> str:
     """環境変数を取得する。未設定の場合は ValueError を送出する。"""
@@ -36,6 +33,13 @@ def get_env(key: str) -> str:
     if not value:
         raise ValueError(f"環境変数 {key} が設定されていません。")
     return value
+
+
+def init_firebase(credentials_json: str) -> None:
+    """Firebase Admin SDK を初期化する。"""
+    cred_dict = json.loads(credentials_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
 
 
 def fetch_csv_from_gcs(bucket_name: str, file_name: str) -> str:
@@ -64,71 +68,23 @@ def parse_csv(text: str) -> list[tuple[str, str]]:
     return records
 
 
-def get_id_token(api_key: str, email: str, password: str) -> str:
-    """メールアドレスとパスワードで Firebase にサインインし、ID トークンを取得する。
-
-    注意: この関数はパスワード認証が有効なアカウント向け。
-    パスワードなしで変更する場合は update_email_by_uid を使用すること。
-    """
-    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-    resp = requests.post(
-        url,
-        json={"email": email, "password": password, "returnSecureToken": True},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    return resp.json()["idToken"]
-
-
-def update_email_with_id_token(api_key: str, id_token: str, new_email: str) -> None:
-    """ID トークンを使って Firebase Authentication のメールアドレスを更新する。"""
-    url = _IDENTITY_TOOLKIT_URL.format(api_key=api_key)
-    resp = requests.post(
-        url,
-        json={"idToken": id_token, "email": new_email, "returnSecureToken": False},
-        timeout=10,
-    )
-    resp.raise_for_status()
-
-
-def update_email(api_key: str, old_email: str, new_email: str) -> None:
+def update_email(old_email: str, new_email: str) -> None:
     """Firebase Authentication のメールアドレスを 1 件更新する。
 
-    Identity Toolkit の accounts:update エンドポイントを使用する。
-    ユーザーの ID トークンが必要なため、管理者による強制変更には
-    Admin SDK（サービスアカウント）の利用を推奨する。
-    本実装では Web API キーを用いた ID トークンベースの更新を行う。
+    Firebase Admin SDK を使用して、メールアドレスで検索し更新する。
     """
-    # メールアドレスから localId を検索
-    lookup_url = _LOOKUP_URL.format(api_key=api_key)
-    lookup_resp = requests.post(
-        lookup_url,
-        json={"email": [old_email]},
-        timeout=10,
-    )
-    lookup_resp.raise_for_status()
-    users = lookup_resp.json().get("users", [])
-    if not users:
-        raise ValueError(f"ユーザーが見つかりません: {old_email}")
-
-    local_id = users[0]["localId"]
-
-    # accounts:update でメールアドレスを更新（管理者権限不要の操作）
-    update_url = _IDENTITY_TOOLKIT_URL.format(api_key=api_key)
-    update_resp = requests.post(
-        update_url,
-        json={"localId": local_id, "email": new_email},
-        timeout=10,
-    )
-    update_resp.raise_for_status()
-    logger.info("更新成功: %s -> %s (localId=%s)", old_email, new_email, local_id)
+    user = auth.get_user_by_email(old_email)
+    auth.update_user(user.uid, email=new_email)
+    logger.info("更新成功: %s -> %s (uid=%s)", old_email, new_email, user.uid)
 
 
 def main() -> None:
     """バッチ処理のエントリーポイント。"""
     bucket_name = get_env("GCS_BUCKET_NAME")
     file_name = get_env("GCS_CSV_FILE_NAME")
-    api_key = get_env("FIREBASE_WEB_API_KEY")
+    credentials_json = get_env("FIREBASE_CREDENTIALS_JSON")
+
+    init_firebase(credentials_json)
 
     csv_text = fetch_csv_from_gcs(bucket_name, file_name)
     records = parse_csv(csv_text)
@@ -143,7 +99,7 @@ def main() -> None:
 
     for old_email, new_email in records:
         try:
-            update_email(api_key, old_email, new_email)
+            update_email(old_email, new_email)
             success_count += 1
         except Exception as e:
             logger.error(

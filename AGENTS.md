@@ -76,7 +76,7 @@ make fmt          # black + isort で自動整形
 | Secret 名 | 内容 |
 | --------- | ---- |
 | `GCP_SA_KEY` | サービスアカウントキー JSON（Artifact Registry & Cloud Run 権限） |
-| `FIREBASE_WEB_API_KEY` | Firebase コンソール「プロジェクトの設定 > 全般」の Web API キー |
+| `FIREBASE_CREDENTIALS_JSON` | Firebase Admin SDK 用サービスアカウントキー JSON（Firebase Authentication 操作権限） |
 
 ### 必要な GitHub Variables
 
@@ -110,4 +110,4 @@ warai-email-change-job/
 | ------ | ---- | ---- |
 | `GCS_BUCKET_NAME` | CSV を格納する GCS バケット名 | ✓ |
 | `GCS_CSV_FILE_NAME` | バケット内 CSV ファイルのパス | ✓ |
-| `FIREBASE_WEB_API_KEY` | Firebase コンソール「プロジェクトの設定 > 全般」の Web API キー | ✓ |
+| `FIREBASE_CREDENTIALS_JSON` | Firebase Admin SDK 用サービスアカウントキー JSON の文字列 | ✓ |

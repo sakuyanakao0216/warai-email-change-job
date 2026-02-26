@@ -25,7 +25,7 @@ current@example.com,new@example.com
 | ------ | ---- | ---- |
 | `GCS_BUCKET_NAME` | CSV を格納する GCS バケット名 | ✓ |
 | `GCS_CSV_FILE_NAME` | バケット内 CSV ファイルのパス（例: `inputs/changes.csv`） | ✓ |
-| `FIREBASE_WEB_API_KEY` | Firebase コンソール「プロジェクトの設定 > 全般」の Web API キー | ✓ |
+| `FIREBASE_CREDENTIALS_JSON` | Firebase Admin SDK 用サービスアカウントキー JSON の文字列 | ✓ |
 
 ## ローカル開発
 

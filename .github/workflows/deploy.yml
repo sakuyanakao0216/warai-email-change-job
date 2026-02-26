@@ -77,9 +77,9 @@ jobs:
             --image ${{ env.IMAGE }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
-            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}" \
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON }}" \
             || gcloud run jobs create email-change-job \
             --image ${{ env.IMAGE }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
-            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}"
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON }}"

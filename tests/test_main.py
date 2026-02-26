@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -89,48 +90,57 @@ def test_fetch_csv_from_gcs_returns_text() -> None:
 
 
 def test_update_email_success() -> None:
-    mock_lookup_resp = MagicMock()
-    mock_lookup_resp.json.return_value = {"users": [{"localId": "uid-abc"}]}
-    mock_lookup_resp.raise_for_status = MagicMock()
+    mock_user = MagicMock()
+    mock_user.uid = "uid-abc"
 
-    mock_update_resp = MagicMock()
-    mock_update_resp.raise_for_status = MagicMock()
+    with (
+        patch("main.auth.get_user_by_email", return_value=mock_user) as mock_get,
+        patch("main.auth.update_user") as mock_update,
+    ):
+        main.update_email("old@example.com", "new@example.com")
 
-    with patch(
-        "main.requests.post", side_effect=[mock_lookup_resp, mock_update_resp]
-    ) as mock_post:
-        main.update_email("api-key-123", "old@example.com", "new@example.com")
-
-    assert mock_post.call_count == 2
-    # 1 回目: lookup
-    first_call_json = mock_post.call_args_list[0].kwargs["json"]
-    assert first_call_json == {"email": ["old@example.com"]}
-    # 2 回目: update
-    second_call_json = mock_post.call_args_list[1].kwargs["json"]
-    assert second_call_json == {"localId": "uid-abc", "email": "new@example.com"}
+    mock_get.assert_called_once_with("old@example.com")
+    mock_update.assert_called_once_with("uid-abc", email="new@example.com")
 
 
 def test_update_email_raises_when_user_not_found() -> None:
-    mock_lookup_resp = MagicMock()
-    mock_lookup_resp.json.return_value = {"users": []}
-    mock_lookup_resp.raise_for_status = MagicMock()
+    from firebase_admin import exceptions
 
-    with patch("main.requests.post", return_value=mock_lookup_resp):
-        with pytest.raises(ValueError, match="ユーザーが見つかりません"):
-            main.update_email("api-key-123", "notfound@example.com", "new@example.com")
+    with patch(
+        "main.auth.get_user_by_email",
+        side_effect=exceptions.NotFoundError("User not found"),
+    ):
+        with pytest.raises(exceptions.NotFoundError):
+            main.update_email("notfound@example.com", "new@example.com")
 
 
 # ---------------------------------------------------------------------------
 # main (integration-like)
 # ---------------------------------------------------------------------------
 
+_DUMMY_CREDS = json.dumps(
+    {
+        "type": "service_account",
+        "project_id": "test-project",
+        "private_key_id": "key-id",
+        "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0Z3VS5JJcds3xHn/ygWep4PAtEsHAXXFWAhsKEgfJSYWLzq\nA-----END RSA PRIVATE KEY-----\n",
+        "client_email": "test@test-project.iam.gserviceaccount.com",
+        "client_id": "123456789",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/test",
+    }
+)
+
 
 def test_main_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GCS_BUCKET_NAME", "bucket")
     monkeypatch.setenv("GCS_CSV_FILE_NAME", "file.csv")
-    monkeypatch.setenv("FIREBASE_WEB_API_KEY", "dummy-api-key")
+    monkeypatch.setenv("FIREBASE_CREDENTIALS_JSON", _DUMMY_CREDS)
 
     with (
+        patch("main.init_firebase"),
         patch(
             "main.fetch_csv_from_gcs",
             return_value="old_email,new_email\na@example.com,b@example.com\n",
@@ -143,9 +153,10 @@ def test_main_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_main_exits_1_on_partial_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GCS_BUCKET_NAME", "bucket")
     monkeypatch.setenv("GCS_CSV_FILE_NAME", "file.csv")
-    monkeypatch.setenv("FIREBASE_WEB_API_KEY", "dummy-api-key")
+    monkeypatch.setenv("FIREBASE_CREDENTIALS_JSON", _DUMMY_CREDS)
 
     with (
+        patch("main.init_firebase"),
         patch(
             "main.fetch_csv_from_gcs",
             return_value="old_email,new_email\na@example.com,b@example.com\n",
@@ -161,9 +172,10 @@ def test_main_exits_1_on_partial_failure(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_main_empty_csv_no_exit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GCS_BUCKET_NAME", "bucket")
     monkeypatch.setenv("GCS_CSV_FILE_NAME", "file.csv")
-    monkeypatch.setenv("FIREBASE_WEB_API_KEY", "dummy-api-key")
+    monkeypatch.setenv("FIREBASE_CREDENTIALS_JSON", _DUMMY_CREDS)
 
     with (
+        patch("main.init_firebase"),
         patch("main.fetch_csv_from_gcs", return_value="old_email,new_email\n"),
         patch("main.update_email") as mock_update,
     ):

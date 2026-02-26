@@ -23,15 +23,16 @@
 
 | 項目 | 設定値 |
 | ---- | ------ |
-| 認証方式 | Web API キー（`FIREBASE_WEB_API_KEY`） |
-| 利用 API | Identity Toolkit REST API（`accounts:lookup` / `accounts:update`） |
+| 認証方式 | Firebase Admin SDK（サービスアカウント JSON） |
+| 利用 SDK | `firebase-admin` Python パッケージ |
+| 利用関数 | `auth.get_user_by_email()` / `auth.update_user()` |
 
 ## 環境変数（Cloud Run Job）
 
 ```bash
 GCS_BUCKET_NAME=<バケット名>
 GCS_CSV_FILE_NAME=inputs/email_changes.csv
-FIREBASE_WEB_API_KEY=<FirebaseコンソールのWebAPIキー>
+FIREBASE_CREDENTIALS_JSON=<サービスアカウントキー JSON 全文字列>
 ```
 
 ## IAM 権限
@@ -42,7 +43,11 @@ Cloud Run Job のサービスアカウントに以下の権限が必要:
 | ------ | ---- |
 | `roles/storage.objectViewer` | GCS から CSV を読み取る |
 
-※ Firebase の操作は Web API キーで行うため、追加の IAM ロールは不要。
+Firebase Admin SDK 用サービスアカウントに必要な権限:
+
+| ロール | 用途 |
+| ------ | ---- |
+| `roles/firebaseauth.admin`（または Firebase Admin SDK 権限） | ユーザー情報の参照・更新 |
 
 ## GitHub Secrets（CI/CD）
 
@@ -51,7 +56,7 @@ Cloud Run Job のサービスアカウントに以下の権限が必要:
 | Secret 名 | 内容 |
 | --------- | ---- |
 | `GCP_SA_KEY` | サービスアカウントキー JSON（Artifact Registry & Cloud Run 権限） |
-| `FIREBASE_WEB_API_KEY` | Firebase コンソール「プロジェクトの設定 > 全般」の Web API キー |
+| `FIREBASE_CREDENTIALS_JSON` | Firebase Admin SDK 用サービスアカウントキー JSON（Firebase Authentication 操作権限） |
 
 ## GitHub Variables（CI/CD）
 
@@ -74,7 +79,7 @@ docker push asia-northeast1-docker.pkg.dev/$PROJECT_ID/warai/email-change-job:la
 gcloud run jobs update email-change-job \
   --image asia-northeast1-docker.pkg.dev/$PROJECT_ID/warai/email-change-job:latest \
   --region asia-northeast1 \
-  --set-env-vars "GCS_BUCKET_NAME=$BUCKET,GCS_CSV_FILE_NAME=$CSV_PATH,FIREBASE_WEB_API_KEY=$API_KEY"
+  --set-env-vars "GCS_BUCKET_NAME=$BUCKET,GCS_CSV_FILE_NAME=$CSV_PATH,FIREBASE_CREDENTIALS_JSON=$CREDS_JSON"
 
 # Job 実行
 gcloud run jobs execute email-change-job --region asia-northeast1

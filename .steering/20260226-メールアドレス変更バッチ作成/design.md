@@ -5,7 +5,9 @@
 ```text
 Cloud Run Job 起動
   │
-  ├─ 環境変数の検証（GCS_BUCKET_NAME / GCS_CSV_FILE_NAME / FIREBASE_WEB_API_KEY）
+  ├─ 環境変数の検証（GCS_BUCKET_NAME / GCS_CSV_FILE_NAME / FIREBASE_CREDENTIALS_JSON）
+  │
+  ├─ Firebase Admin SDK 初期化（サービスアカウント JSON をパース）
   │
   ├─ GCS から CSV を取得
   │    └─ GCS_BUCKET_NAME / GCS_CSV_FILE_NAME
@@ -15,8 +17,8 @@ Cloud Run Job 起動
   │       2 行目以降: データレコード
   │
   ├─ 各レコードを処理
-  │    ├─ Identity Toolkit accounts:lookup で old_email から localId を取得
-  │    ├─ Identity Toolkit accounts:update で new_email に更新
+  │    ├─ auth.get_user_by_email(old_email) で UID を取得
+  │    ├─ auth.update_user(uid, email=new_email) でメールアドレスを更新
   │    ├─ 成功 → INFO ログ出力して次へ
   │    └─ 失敗 → ERROR ログ出力 + 失敗リストに追記して次へ（処理継続）
   │
@@ -48,17 +50,20 @@ warai-email-change-job/
 | 名前 | 役割 |
 | ---- | ---- |
 | `get_env(key)` | 環境変数取得（未設定時に ValueError） |
+| `init_firebase(credentials_json)` | Firebase Admin SDK 初期化 |
 | `fetch_csv_from_gcs(bucket, file_name)` | GCS から CSV テキストを取得 |
 | `parse_csv(text)` | CSV テキスト → `list[tuple[str, str]]`（ヘッダー行スキップ） |
-| `update_email(api_key, old_email, new_email)` | Identity Toolkit REST API で 1 件更新 |
+| `update_email(old_email, new_email)` | Firebase Admin SDK で 1 件更新 |
 | `main()` | 全体の処理統括 |
 
-## 利用 API
+## 利用 SDK / API
 
-| API | エンドポイント | 用途 |
-| --- | -------------- | ---- |
-| Identity Toolkit | `accounts:lookup` | old_email から localId を検索 |
-| Identity Toolkit | `accounts:update` | localId 指定でメールアドレスを更新 |
+| SDK/API | 用途 |
+| ------- | ---- |
+| `firebase-admin` Python SDK | Firebase Authentication のユーザー操作（管理者権限） |
+| `auth.get_user_by_email(email)` | メールアドレスで UID を検索 |
+| `auth.update_user(uid, email=new_email)` | メールアドレスを更新 |
+| `google-cloud-storage` | GCS から CSV を取得 |
 
 ## エラーハンドリング方針
 
