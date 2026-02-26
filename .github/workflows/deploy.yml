@@ -1,0 +1,85 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGION: asia-northeast1
+  IMAGE: asia-northeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/warai/email-change-job
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Black
+        run: black --check .
+
+      - name: isort
+        run: isort --profile black --check-only .
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: mypy
+        run: mypy main.py
+
+      - name: pytest
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=40
+
+      - name: pip-audit
+        run: pip-audit
+
+  deploy:
+    name: Deploy to Cloud Run Jobs
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ env.IMAGE }}:${{ github.sha }} -t ${{ env.IMAGE }}:latest .
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: Deploy to Cloud Run Jobs
+        run: |
+          gcloud run jobs update email-change-job \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}" \
+            || gcloud run jobs create email-change-job \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --set-env-vars "GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},GCS_CSV_FILE_NAME=${{ vars.GCS_CSV_FILE_NAME }},FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}"
