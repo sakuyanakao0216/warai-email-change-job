@@ -22,6 +22,9 @@ htmlcov/
 *.json
 !package.json
 
+# CSV（GCS にアップロードするデータファイル）
+*.csv
+
 # OS
 .DS_Store
 Thumbs.db
